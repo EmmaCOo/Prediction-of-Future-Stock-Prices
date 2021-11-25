@@ -1,0 +1,153 @@
+---
+title: "ADS506 - Team 5 - Final Project"
+author: "Katie Hu, Emma Oo, Dallin Munger"
+date: "11/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+Palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+# Netflix's Stock Price Prediction Using Time Series Analysis
+
+Insert Short Description, if needed.
+
+## Exploratory Data Analysis
+
+#### Libraries and Dataset
+
+```{r, echo = TRUE, message = FALSE}
+#Import Libraries and Dataset
+library(knitr)
+library(tidyquant)
+library(quantmod)
+library(tseries)
+library(tidyverse)
+library(GGally)
+library(ggplot2)
+library(fpp2)
+library(dplyr)
+library(quantmod)
+```
+
+#### Import Dataset
+
+```{r}
+nflx_df = getSymbols.yahoo(Symbols = 'NFLX' , env = .GlobalEnv, src = 'yahoo', from = '2016-11-15', to = '2021-11-16', auto.assign = FALSE)
+```
+
+```{r}
+#Create new dataframe to preserve original dataset and assign new variable.
+nflx <- nflx_df
+```
+
+**Check for Missing Variables**
+```{r}
+colSums(is.na(nflx))
+```
+
+
+```{r}
+str(nflx)
+```
+
+```{r}
+# New Dataframe to select only the adjusted close
+adj_nflx = Ad(nflx)
+```
+
+```{r, fig.width = 8, fig.height=6}
+plot(nflx$NFLX.Volume, type = 'l', xlab = 'Time', ylab = 'Volume', main = 'Volume of Netflix Stock over Time', cex = 1)
+plot(adj_nflx, type = 'l', xlab = 'Time', ylab = 'Close Prices', main = 'Close Prices over Time', cex = 1)
+```
+
+**ADF Test**
+```{r}
+print(adf.test(adj_nflx))
+```
+
+```{r}
+adf_diff = diff(log(adj_nflx), lag = 1)
+adf_diff = na.locf(adf_diff, na.rm = TRUE, fromLast = TRUE)
+plot(adf_diff)
+```
+```{r, fig.width = 4, fig.height = 3}
+# ACF
+acf_nflx = acf(adf_diff, main = 'ACF')
+```
+```{r}
+# PACF
+pacf_nflx = pacf(adf_diff, main = 'PACF')
+```
+
+**Adjusted Closing Price vs Difference**
+```{r}
+par(mfrow = c(2,1))
+plot(adj_nflx, main = 'Adjusted Closing Price', col = 'cornflowerblue')
+plot(diff(adj_nflx), main = 'Difference Closing Price', col = 'cornflowerblue')
+```
+
+```{r, fig.width = 4, fig.height=3}
+# Decomposition of Additive Time Series
+
+nflx_ts = ts(adj_nflx, frequency = 365, start = 2015-11-15)
+nflx_de = decompose(nflx_ts)
+plot(nflx_de)
+```
+
+
+```{r, fig.width = 10, fig.height=8}
+# Calculate the First Degree Difference
+diff = diff(adj_nflx)
+log_diff = diff(log(adj_nflx))
+sqrt_diff = diff(sqrt(adj_nflx))
+
+par(mfrow = c(3,1))
+plot(diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Raw Data', cex = 1)
+plot(log_diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Logged Data', cex = 1)
+plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Square-Root Data', cex = 1)
+```
+
+**ACF First Degree Difference**
+```{r, fig.width = 10, fig.height=8}
+#par(mfrow = c(2,1))
+#acf(sqrt_diff, main = 'Autocorrelation Function of First Differences')
+#pacf(sqrt_diff, lag.max = 31, main = 'Partial Autocorrelation Function of First Differences')
+```
+
+**ACF Second Degree Difference**
+```{r, fig.width = 10, fig.height=8}
+sqrt_diff2 = diff(sqrt_diff)
+#par(mfrow = c(2,1))
+#acf(sqrt_diff2, main = 'Autocorrelation Function of First Differences')
+#pacf(sqrt_diff2, lag.max = 27, main = 'Partial Autocorrelation Function of First Differences')
+```
+
+
+
+```{r, fig.width = 12, fig.height=8}
+#par(mfrow = c(2, 1))
+#plot(nflx, ylab = 'QEPS', type = 'o', col = 4, main = 'Stock Price Growth', cex = 1)
+#plot(log(nflx), ylab = 'log(QEPS)', type = 'o', col = 4, cex = 1)
+```
+
+```{r}
+# ACF and PACF
+
+```
+
+
+```{r}
+# Regression
+
+#par(mfrow = c(1, 2))
+#plot(log(nflx), main = 'Fitted Values', col = 'cornflowerblue')
+#lines(fitted())
+```
+
+```{r}
+
+```
+
