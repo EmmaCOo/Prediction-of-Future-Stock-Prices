@@ -44,10 +44,10 @@ nflx <- nflx_df
 ```
 
 **Check for Missing Variables**
+
 ```{r}
 colSums(is.na(nflx))
 ```
-
 
 ```{r}
 str(nflx)
@@ -59,11 +59,12 @@ adj_nflx = Ad(nflx)
 ```
 
 ```{r, fig.width = 8, fig.height=6}
-plot(nflx$NFLX.Volume, type = 'l', xlab = 'Time', ylab = 'Volume', main = 'Volume of Netflix Stock over Time', cex = 1)
-plot(adj_nflx, type = 'l', xlab = 'Time', ylab = 'Close Prices', main = 'Close Prices over Time', cex = 1)
+plot(nflx$NFLX.Volume, type = 'l', xlab = 'Time', ylab = 'Volume', main = 'Volume of Netflix Stock over Time')
+plot(adj_nflx, type = 'l', xlab = 'Time', ylab = 'Close Prices', main = 'Close Prices over Time')
 ```
 
 **ADF Test**
+
 ```{r}
 print(adf.test(adj_nflx))
 ```
@@ -73,16 +74,19 @@ adf_diff = diff(log(adj_nflx), lag = 1)
 adf_diff = na.locf(adf_diff, na.rm = TRUE, fromLast = TRUE)
 plot(adf_diff)
 ```
+
 ```{r, fig.width = 4, fig.height = 3}
 # ACF
 acf_nflx = acf(adf_diff, main = 'ACF')
 ```
+
 ```{r}
 # PACF
 pacf_nflx = pacf(adf_diff, main = 'PACF')
 ```
 
 **Adjusted Closing Price vs Difference**
+
 ```{r}
 par(mfrow = c(2,1))
 plot(adj_nflx, main = 'Adjusted Closing Price', col = 'cornflowerblue')
@@ -97,7 +101,6 @@ nflx_de = decompose(nflx_ts)
 plot(nflx_de)
 ```
 
-
 ```{r, fig.width = 10, fig.height=8}
 # Calculate the First Degree Difference
 diff = diff(adj_nflx)
@@ -111,6 +114,7 @@ plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Squ
 ```
 
 **ACF First Degree Difference**
+
 ```{r, fig.width = 10, fig.height=8}
 #par(mfrow = c(2,1))
 #acf(sqrt_diff, main = 'Autocorrelation Function of First Differences')
@@ -118,14 +122,13 @@ plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Squ
 ```
 
 **ACF Second Degree Difference**
+
 ```{r, fig.width = 10, fig.height=8}
 sqrt_diff2 = diff(sqrt_diff)
 #par(mfrow = c(2,1))
 #acf(sqrt_diff2, main = 'Autocorrelation Function of First Differences')
 #pacf(sqrt_diff2, lag.max = 27, main = 'Partial Autocorrelation Function of First Differences')
 ```
-
-
 
 ```{r, fig.width = 12, fig.height=8}
 #par(mfrow = c(2, 1))
@@ -138,7 +141,6 @@ sqrt_diff2 = diff(sqrt_diff)
 
 ```
 
-
 ```{r}
 # Regression
 
@@ -150,4 +152,3 @@ sqrt_diff2 = diff(sqrt_diff)
 ```{r}
 
 ```
-
