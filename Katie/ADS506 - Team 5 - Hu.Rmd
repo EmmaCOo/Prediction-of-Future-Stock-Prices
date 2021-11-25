@@ -108,9 +108,9 @@ log_diff = diff(log(adj_nflx))
 sqrt_diff = diff(sqrt(adj_nflx))
 
 par(mfrow = c(3,1))
-plot(diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Raw Data', cex = 1)
-plot(log_diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Logged Data', cex = 1)
-plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Square-Root Data', cex = 1)
+plot(diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Raw Data')
+plot(log_diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Logged Data')
+plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Square-Root Data')
 ```
 
 **ACF First Degree Difference**
