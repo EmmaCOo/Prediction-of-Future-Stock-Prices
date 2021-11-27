@@ -1,0 +1,340 @@
+---
+title: "ADS506 - Team 5 - Final Project"
+author: "Katie Hu, Emma Oo, Dallin Munger"
+date: "11/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+Palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+# Netflix's Stock Price Prediction Using Time Series Analysis
+
+Insert Short Description, if needed.
+
+## Exploratory Data Analysis
+
+#### Libraries and Dataset
+
+```{r, echo = TRUE, message = FALSE}
+#Import Libraries and Dataset
+library(knitr)
+library(tidyquant)
+library(quantmod)
+library(tseries)
+library(tidyverse)
+library(GGally)
+library(ggplot2)
+library(fpp2)
+library(dplyr)
+library(quantmod)
+library(astsa)
+```
+
+#### Import Dataset
+
+```{r}
+nflx_df = getSymbols.yahoo(Symbols = 'NFLX' , env = .GlobalEnv, src = 'yahoo', from = '2016-11-15', to = '2021-11-16', auto.assign = FALSE)
+head(nflx_df)
+```
+
+```{r}
+#Create new dataframe to preserve original dataset and assign new variable.
+nflx <- nflx_df
+```
+
+**Check for Missing Variables**
+
+```{r}
+colSums(is.na(nflx))
+```
+
+```{r}
+str(nflx)
+```
+# https://finance.zacks.com/adjusted-closing-price-vs-closing-price-9991.html
+#We decided to use adj close price instead of close price since adj close price is a more accurate reflection of the true value of the stock. 
+
+```{r}
+# New Dataframe to select only the adjusted close
+adj_nflx = Ad(nflx)
+head(adj_nflx)
+```
+
+```{r, fig.width = 8, fig.height=6}
+plot(nflx$NFLX.Volume, type = 'l', xlab = 'Time', ylab = 'Volume', main = 'Volume of Netflix Stock over Time')
+plot(adj_nflx, type = 'l', xlab = 'Time', ylab = 'Close Prices', main = 'Close Prices over Time', col='4')
+```
+
+**ADF Test**
+# Null hypothesis H0 :  The times series is non-stationary.
+# Alternative hypothessis HA = The times series is stationary.
+# If p-value is less than significant level (0.05), reject the null hypothesis and conclude that times series is stationary. 
+#Since p-value is 0.5738, fail to reject the null value and conlude that nflx times series is non-stationary. 
+```{r}
+print(adf.test(adj_nflx))
+```
+#Differencing
+
+```{r}
+adf_diff = diff(log(adj_nflx), lag = 1)
+adf_diff = na.locf(adf_diff, na.rm = TRUE, fromLast = TRUE)
+plot(adf_diff)
+```
+
+
+```{r, fig.width = 4, fig.height = 3}
+# ACF
+acf_nflx = acf(adf_diff, main = 'ACF')
+```
+
+```{r}
+# PACF
+pacf_nflx = pacf(adf_diff, main = 'PACF')
+```
+
+**Adjusted Closing Price vs Difference**
+
+```{r}
+par(mfrow = c(2,1))
+plot(adj_nflx, main = 'Adjusted Closing Price', col = 'cornflowerblue')
+plot(diff(adj_nflx), main = 'Difference Closing Price', col = 'cornflowerblue')
+```
+
+```{r, fig.width = 4, fig.height=3}
+# Decomposition of Additive Time Series
+
+nflx_ts = ts(adj_nflx, frequency = 365, start = 2015-11-15)
+nflx_de = decompose(nflx_ts)
+plot(nflx_de)
+```
+# logged difference showed more balanced variance. Thus, we will use log_diff for modeling. 
+
+#Note: Volalitiy is obseved even after with differencing. 
+```{r, fig.width = 8, fig.height=6}
+# Calculate the First Degree Difference
+diff = diff(adj_nflx)
+log_diff = diff(log(adj_nflx))
+sqrt_diff = diff(sqrt(adj_nflx))
+
+par(mfrow = c(3,1))
+plot(diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Raw Data')
+plot(log_diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Logged Data')
+plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'First Degree Difference - Square-Root Data')
+```
+**ACF First Degree Difference**
+
+
+```{r, fig.width = 10, fig.height=8}
+par(mfrow = c(2,1))
+acf(sqrt_diff, main = 'Autocorrelation Function of First Differences', na.action = na.pass)
+pacf(sqrt_diff, lag.max = 31, main = 'Partial Autocorrelation Function of First Differences', na.action = na.pass)
+```
+
+
+**Second Degree Differencing**
+
+#Again, logged difference with second degree showed more balanced variance. Thus, we will use log_diff2 for modeling. 
+ 
+```{r, fig.width = 8, fig.height=6}
+# Calculate the Second Degree Difference
+
+diff2 = diff(diff)
+log_diff2 = diff(log_diff)
+sqrt_diff2 = diff(sqrt_diff)
+
+par(mfrow = c(3,1))
+plot(diff2, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'Second Degree Difference - Raw Data')
+plot(log_diff2, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'Second Degree Difference - Logged Data')
+plot(sqrt_diff2, type = 'l', xlab = 'Time', ylab = 'Second Degree Difference - Square-Root Data')
+```
+
+```{r, fig.width = 12, fig.height=8}
+par(mfrow = c(2, 1))
+plot(nflx, ylab = 'QEPS', type = 'o', col = 4, main = 'Stock Price Growth', cex = 1)
+plot(log(nflx), ylab = 'log(QEPS)', type = 'o', col = 4, cex = 1)
+```
+
+** MODELS' BUILDING **
+
+
+# 1) Per EDA process, it's noted that differencing with logging showed better stationarity.  Thus, we will be using log_diff for first differencing and log_diff2 for second differencing for our models. 
+
+#2) Parameters for the models will be chosen by ACF and PACF plots.
+ 
+#3) The models with different parameters will be tested.In addition, auto.arima wil be tested for choosing the best models. 
+ 
+#4) Diagnostic measures will be performed to see the residual's correlation. Since we have noticed high volality in EDA proces, we will move on to GARCH models if ARIMA models don't perform well. 
+
+
+**MODELS FOR FIRST DEGREE DIFFERENCING**
+
+#ACF and PACF of diff_log 
+
+#Per ACF, spikes at 1, 4, and 5. PACF tapers to zero.  Thus, let's try MA(1), MA(4), and MA(5) 
+
+```{r, fig.width = 8, fig.height=8}
+par(mfrow=c(2,1))
+acf(diff, na.action = na.pass, main ='ACF Plot of First Differencing')
+pacf(diff, na.action = na.pass)
+```
+
+**MODELS FOR SECOND DEGREE DIFFERENCING**
+
+# ACF was cut off at lag 1.  PACF tailed off.  Let's try MA(1)
+
+```{r, fig.width = 8, fig.height=6}
+par(mfrow=c(2,1))
+acf(log_diff2, na.action = na.pass)
+pacf(log_diff2, na.action = na.pass)
+```
+
+#Assigning the models' names by different parameters
+
+# Model1 = auto.arima for First Differencing
+# Model2 = MA(1) for First Differencing
+# Model3 = MA(4) for First Differencing
+# Model4 = MA(5) for First Differencing
+
+# Model5 = auto.arima for Second Differencing
+# Model6 = MA(1) for Second Differencing
+
+```{r}
+library(forecast)
+set.seed(123)
+Model1<- auto.arima(diff(adj_nflx), stationary = TRUE, ic = c("aicc", "aic", "bic"), 
+                          trace = TRUE)
+```
+#Diagnostic Checking 
+
+#Since p-value of Ljung-Box test is 0.0001007, highly correlation by ACF, the model left out some data series and didn't perform well.  Thus, ARIMA(0,0,1) is not a good model. 
+
+```{r}
+checkresiduals(Model1) ###diagnostic checking
+```
+
+# Model2 = MA(1) for First Differencing
+# Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(1) is not a good fitted model. 
+
+```{r}
+Model2 = sarima((log(adj_nflx)), 0,1,1)
+Model2
+```
+# Model3 = MA(4) for First Differencing
+
+## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(4) is not a good fitted model. 
+
+```{r}
+Model3 = sarima(log(adj_nflx), 0,1,4)
+Model3
+```
+# Model4 = MA(5) for First Differencing
+
+## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(5) is not a good fitted model. 
+
+
+```{r}
+Model4 = sarima(log(adj_nflx), 0,1,5)
+Model4
+```
+# Model6 = auto.arima for Second Differencing
+
+
+```{r}
+library(forecast)
+set.seed(123)
+ Model5 <- auto.arima(diff(diff(adj_nflx)), stationary = TRUE, ic = c("aicc", "aic", "bic"), 
+                          trace = TRUE)
+```
+#Since p-value of Ljung-Box test is 6.439e-15, highly correlation by ACF, the model left out some data series and didn't perform well.  Thus, ARIMA(5,0,0) is not a good model. 
+
+```{r}
+checkresiduals(Model5)
+```
+
+# Model6 = MA(1) for Second Differencing
+
+## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(1) is not a good fitted model. 
+
+```{r}
+Model6 = sarima(log(adj_nflx), 0,2,1)
+Model6
+```
+#Since all p-value from Ljung-Box tests are lower than 0.05 and ACF residuals showed the correlation for all ARIMA models, ARIMA models are not best fit for this high volatile stock.  
+
+#We will try GARCH models for better performance. 
+
+
+** GARCH MODELS**
+
+
+#GARACH model1 with ARMA order (1,1)
+
+```{r}
+library("rugarch")
+nflx_garch <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(1,1)), distribution.model = "std")
+nflx_garch1 <-ugarchfit(spec=nflx_garch, data=adj_nflx)
+nflx_garch1
+```
+
+#GARCH MODEL2 WITH ARMA (2,2)
+
+```{r}
+nflx_garch2 <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(2,2)), distribution.model = "std")
+nflx_garch2 <-ugarchfit(spec=nflx_garch2, data=adj_nflx)
+nflx_garch2
+```
+#GARCH MODEL3 WITH ARMA ORDER (3,3)
+
+```{r}
+nflx_garch3 <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(3,3)), distribution.model = "std")
+nflx_garch3 <-ugarchfit(spec=nflx_garch3, data=adj_nflx)
+nflx_garch3
+```
+#GARCH(1,1)
+Akaike       6.7226
+
+#GARCH(2,2)
+Akaike       6.7209
+#Howeer, lower p values for Weighted Ljung-Box Test on Standardized Residuals
+
+#GARCH(3,3)
+Akaike       6.7243
+
+#Thus, GARCH(1,1) outperformed.
+
+
+
+## Backtesting method to validate GARCH model:
+
+```{r}
+
+ugarchrol
+mod_egarch = ugarchroll(nflx_garch1, data = adj_nflx, n.ahead = 1,
+                        n.start = 2500, refit.every = 200, refit.window = "recursive")
+
+mod_egarch
+
+```
+
+
+** FORECASTING **
+
+#nflx_garch3 with arma order (1,1) 
+
+```{r}
+nflx_predict <- ugarchboot(nflx_garch1, n.ahead=30,method=c("Partial","Full")[1])
+nflx_predict
+plot(nflx_predict,which=2)
+```
+
+```{r}
+forecast <- ugarchforecast(nflx_garch1, n.ahead=30)
+forecast
+```
+
+
+
+
