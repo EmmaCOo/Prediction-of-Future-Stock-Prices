@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, messages = FALSE)
 Palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ```
 
@@ -264,7 +264,36 @@ Model6
 ```
 #Since all p-value from Ljung-Box tests are lower than 0.05 and ACF residuals showed the correlation for all ARIMA models, ARIMA models are not best fit for this high volatile stock.  
 
+# Model 7 - MA(2) with First Difference of Logged Closing Price
+
+```{r}
+#ACF and PACF plot of logged, differenced closing prices
+model_seven <- auto.arima(log(adj_nflx))
+summary(model_seven)
+preds <- forecast(model_seven, h = 30) 
+autoplot(preds)
+```
+
+```{r}
+checkresiduals(model_seven)
+```
+
+
+```{r}
+#Backtest ARIMA model
+library(NTS)
+results <- backtest(model_seven, log(adj_nflx), orig = 80, h = 30) 
+```
+
+```{r}
+print(paste("Average RMSE: ", exp(mean(results$rmse))))
+print(paste("Average MAE: ", exp(mean(results$mabso))))
+```
+
+
 #We will try GARCH models for better performance. 
+
+
 
 
 ** GARCH MODELS**
@@ -311,14 +340,7 @@ Akaike       6.7243
 
 ```{r}
 
-ugarchrol
-mod_egarch = ugarchroll(nflx_garch1, data = adj_nflx, n.ahead = 1,
-                        n.start = 2500, refit.every = 200, refit.window = "recursive")
-
-mod_egarch
-
 ```
-
 
 ** FORECASTING **
 
