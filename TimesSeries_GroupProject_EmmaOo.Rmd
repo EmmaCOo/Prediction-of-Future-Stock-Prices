@@ -5,8 +5,8 @@ date: "11/20/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, messages = FALSE)
+```{r setup, include=FALSE, messages=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 Palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ```
 
@@ -43,6 +43,7 @@ head(nflx_df)
 ```{r}
 #Create new dataframe to preserve original dataset and assign new variable.
 nflx <- nflx_df
+nrow(nflx)
 ```
 
 **Check for Missing Variables**
@@ -166,123 +167,69 @@ plot(log(nflx), ylab = 'log(QEPS)', type = 'o', col = 4, cex = 1)
  
 #3) The models with different parameters will be tested.In addition, auto.arima wil be tested for choosing the best models. 
  
-#4) Diagnostic measures will be performed to see the residual's correlation. Since we have noticed high volality in EDA proces, we will move on to GARCH models if ARIMA models don't perform well. 
+#4) Diagnostic measures will be performed to see the residual's correlation. Since we have noticed high volality in EDA proces, we will als tr GARCH models to confirm the volality of Netlfix stock prices. 
 
 
 **MODELS FOR FIRST DEGREE DIFFERENCING**
 
 #ACF and PACF of diff_log 
 
-#Per ACF, spikes at 1, 4, and 5. PACF tapers to zero.  Thus, let's try MA(1), MA(4), and MA(5) 
+#Per ACF, spikes at 1, 5, and 8. PACF tapers to zero.  Thus, let's try MA(1). 
 
 ```{r, fig.width = 8, fig.height=8}
 par(mfrow=c(2,1))
-acf(diff, na.action = na.pass, main ='ACF Plot of First Differencing')
-pacf(diff, na.action = na.pass)
+acf(diff(log(adj_nflx)), na.action = na.pass, main ='ACF Plot of First Differencing')
+pacf(diff(log(adj_nflx)), na.action = na.pass)
 ```
 
 **MODELS FOR SECOND DEGREE DIFFERENCING**
 
 # ACF was cut off at lag 1.  PACF tailed off.  Let's try MA(1)
 
-```{r, fig.width = 8, fig.height=6}
+```{r, fig.width =4, fig.height=6}
 par(mfrow=c(2,1))
-acf(log_diff2, na.action = na.pass)
-pacf(log_diff2, na.action = na.pass)
+acf(diff(diff(log(adj_nflx))), na.action = na.pass)
+pacf(diff(diff(log(adj_nflx))),na.action = na.pass)
 ```
 
 #Assigning the models' names by different parameters
 
-# Model1 = auto.arima for First Differencing
-# Model2 = MA(1) for First Differencing
-# Model3 = MA(4) for First Differencing
-# Model4 = MA(5) for First Differencing
+# Model1 = MA(1) for First Differencing
+# Model2 = MA(1) for Second Differencing
+# Model3 = auto.arima for Differencing for logged values
 
-# Model5 = auto.arima for Second Differencing
-# Model6 = MA(1) for Second Differencing
 
+# Model1 = MA(1) for First Differencing
 ```{r}
-library(forecast)
-set.seed(123)
-Model1<- auto.arima(diff(adj_nflx), stationary = TRUE, ic = c("aicc", "aic", "bic"), 
-                          trace = TRUE)
+Model1 = sarima((log(adj_nflx)), 0,1,1)
+Model1
 ```
-#Diagnostic Checking 
-
-#Since p-value of Ljung-Box test is 0.0001007, highly correlation by ACF, the model left out some data series and didn't perform well.  Thus, ARIMA(0,0,1) is not a good model. 
-
+# Model2 = MA(1) for Second Differencing
 ```{r}
-checkresiduals(Model1) ###diagnostic checking
-```
-
-# Model2 = MA(1) for First Differencing
-# Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(1) is not a good fitted model. 
-
-```{r}
-Model2 = sarima((log(adj_nflx)), 0,1,1)
+Model2 = sarima((log(adj_nflx)), 0,2,1)
 Model2
 ```
-# Model3 = MA(4) for First Differencing
 
-## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(4) is not a good fitted model. 
-
+#Model3 (Auto.arima for logged, first differencing)
 ```{r}
-Model3 = sarima(log(adj_nflx), 0,1,4)
-Model3
-```
-# Model4 = MA(5) for First Differencing
-
-## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(5) is not a good fitted model. 
-
-
-```{r}
-Model4 = sarima(log(adj_nflx), 0,1,5)
-Model4
-```
-# Model6 = auto.arima for Second Differencing
-
-
-```{r}
-library(forecast)
-set.seed(123)
- Model5 <- auto.arima(diff(diff(adj_nflx)), stationary = TRUE, ic = c("aicc", "aic", "bic"), 
-                          trace = TRUE)
-```
-#Since p-value of Ljung-Box test is 6.439e-15, highly correlation by ACF, the model left out some data series and didn't perform well.  Thus, ARIMA(5,0,0) is not a good model. 
-
-```{r}
-checkresiduals(Model5)
+model_three <- auto.arima(log(adj_nflx))
+summary(model_three)
 ```
 
-# Model6 = MA(1) for Second Differencing
-
-## Since there's correlation in ACF plot and p-values lower than 0.05 in Ljung_Box, MA(1) is not a good fitted model. 
+#Diagnostics Test for Model3
 
 ```{r}
-Model6 = sarima(log(adj_nflx), 0,2,1)
-Model6
+checkresiduals(model_three) ###diagnostic checking
 ```
-#Since all p-value from Ljung-Box tests are lower than 0.05 and ACF residuals showed the correlation for all ARIMA models, ARIMA models are not best fit for this high volatile stock.  
-
-# Model 7 - MA(2) with First Difference of Logged Closing Price
-
 ```{r}
-#ACF and PACF plot of logged, differenced closing prices
-model_seven <- auto.arima(log(adj_nflx))
-summary(model_seven)
-preds <- forecast(model_seven, h = 30) 
+preds <- forecast(model_three, h = 30) 
 autoplot(preds)
 ```
 
 ```{r}
-checkresiduals(model_seven)
-```
-
-
-```{r}
 #Backtest ARIMA model
 library(NTS)
-results <- backtest(model_seven, log(adj_nflx), orig = 80, h = 30) 
+results <- backtest(model_three, log(adj_nflx), orig = 80, h = 30) 
 ```
 
 ```{r}
@@ -290,10 +237,15 @@ print(paste("Average RMSE: ", exp(mean(results$rmse))))
 print(paste("Average MAE: ", exp(mean(results$mabso))))
 ```
 
+#Predicted Prices for Next 30 days
+```{r}
+preds_df = data.frame(preds)
+predicted_prices <- exp(preds_df)
+predicted_prices
+```
 
-#We will try GARCH models for better performance. 
 
-
+#We will try GARCH models for volality of the stock.  
 
 
 ** GARCH MODELS**
@@ -327,7 +279,7 @@ Akaike       6.7226
 
 #GARCH(2,2)
 Akaike       6.7209
-#Howeer, lower p values for Weighted Ljung-Box Test on Standardized Residuals
+#However, lower p values for Weighted Ljung-Box Test on Standardized Residuals
 
 #GARCH(3,3)
 Akaike       6.7243
@@ -336,15 +288,12 @@ Akaike       6.7243
 
 
 
-## Backtesting method to validate GARCH model:
-
-```{r}
-
-```
-
 ** FORECASTING **
 
 #nflx_garch3 with arma order (1,1) 
+
+#Forecasting with Bootstrap Forecast which forecast both series and conditional variances
+
 
 ```{r}
 nflx_predict <- ugarchboot(nflx_garch1, n.ahead=30,method=c("Partial","Full")[1])
@@ -352,9 +301,17 @@ nflx_predict
 plot(nflx_predict,which=2)
 ```
 
+#Predicted Prices by GARCH models
+
+
 ```{r}
-forecast <- ugarchforecast(nflx_garch1, n.ahead=30)
-forecast
+nflx_predict_df <- as.data.frame(nflx_predict, which="series", type="summary")
+nflx_predict_df
+```
+
+```{r}
+pred_table <- as.data.frame(t(nflx_predict_df))
+pred_table
 ```
 
 
