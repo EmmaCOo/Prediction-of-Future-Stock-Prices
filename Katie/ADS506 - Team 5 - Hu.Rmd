@@ -50,12 +50,18 @@ colSums(is.na(nflx))
 ```
 
 ```{r}
+head(nflx)
+tail(nflx)
 str(nflx)
 ```
 
 ```{r}
 # New Dataframe to select only the adjusted close
 adj_nflx = Ad(nflx)
+```
+
+```{r}
+summary(adj_nflx)
 ```
 
 ```{r, fig.width = 8, fig.height=6}

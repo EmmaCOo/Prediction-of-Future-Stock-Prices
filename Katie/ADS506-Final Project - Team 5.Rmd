@@ -1,0 +1,349 @@
+---
+title: "ADS506 - Team 5 - Final Project"
+author: "Katie Hu, Emma Oo, Dallin Munger"
+date: "12/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, messages = FALSE)
+
+# Set colorblind friendly palette as the standard for colors used in following graphs
+Palette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+## Netflix's Stock Price Prediction Using Time Series Analysis
+
+### Exploratory Data Analysis
+
+#### Libraries and Dataset
+
+```{r, echo = TRUE, message = FALSE}
+# Import Libraries
+
+library(knitr)
+library(psych)
+library(kableExtra)
+library(tidyquant)
+library(quantmod)
+library(tseries)
+library(tidyverse)
+library(GGally)
+library(ggplot2)
+library(fpp2)
+library(dplyr)
+library(quantmod)
+library(astsa)
+library(NTS)
+library(rugarch)
+library(forecast)
+```
+
+```{r}
+# Import Dataset
+
+nflx_df = getSymbols.yahoo(Symbols = 'NFLX' , env = .GlobalEnv, src = 'yahoo', from = '2016-11-15', to = '2021-11-16', auto.assign = FALSE)
+head(nflx_df)
+tail(nflx_df)
+```
+
+```{r}
+# Create new dataframe to preserve original dataset and assign new variable.
+nflx <- nflx_df
+```
+
+
+```{r}
+# Check for Missing Variables
+colSums(is.na(nflx))
+```
+
+
+```{r}
+# Check structure to determine the shape and data types of the data set
+str(nflx)
+```
+
+Moving forward, specified in the exploratory data analysis section of the paper, research shows that adjusted closing price is the most accurate reflection of the true value of stock. Most stock price websites that don't disclose both closing and adjusted closing prices, the closing price shown is the adjusted price. Based on this, `NFLX.Adjusted` and dates will be used to predict stock prices.
+
+```{r}
+# New dataframe to select only the adjusted close
+adj_nflx = Ad(nflx)
+head(adj_nflx)
+summary(adj_nflx)
+```
+
+Summary shows that within the span of five years, Netflix's stock prices have fluctuated with a range of 576.5, with the average being around 351.1.
+
+```{r, fig.width = 10, fig.height=12}
+par(mfrow=c(2,1))
+plot(nflx$NFLX.Volume, type = 'l', ylab = 'Volume', main = NULL, cex.axis = .5)
+mtext(side = 3, text = 'Volume of Netflix Stock Over Time', line = 1.5, cex = 1, font = 2)
+
+plot(adj_nflx, type = 'l', ylab = 'Close Prices', main = NULL, cex.axis = .5)
+mtext(side = 3, text = 'Close Prices over Time', line = 1.5, cex = 1, font = 2)
+```
+
+**ADF (Augmented Dickey-Fuller) Test**
+Null hypothesis H0 : The times series is non-stationary.
+Alternative hypothesis HA : The times series is stationary.
+If p-value is less than the significant level (0.05), reject the null hypothesis and conclude that the times series is stationary. 
+Since p-value is 0.5738, it fails to reject the null value. This will show that this times series is non-stationary. 
+
+```{r}
+print(adf.test(adj_nflx))
+```
+
+**Differencing**
+
+```{r}
+adf_diff = diff(log(adj_nflx), lag = 1)
+adf_diff = na.locf(adf_diff, na.rm = TRUE, fromLast = TRUE)
+plot(adf_diff, main = NULL)
+mtext(side = 3, text = 'Logged Difference', line = 1.5, cex = 1, font = 2)
+```
+
+**ACF (Autocorrelation Function)**
+```{r}
+# ACF
+acf_nflx = acf(adf_diff, main = 'ACF')
+```
+
+**PACF (Partial Autocorrelation Function)**
+```{r}
+# PACF
+pacf_nflx = pacf(adf_diff, main = 'PACF')
+```
+
+
+**Adjusted Closing Price vs Difference**
+
+The adjusted closing price shows a relatively steady rise as time increased. When taken the difference, there are some spikes within the data. Because of this, we will take the logged difference to see if there is less variance.
+
+```{r}
+par(mfrow = c(2,1))
+plot(adj_nflx, main = 'Adjusted Closing Price', col = 'cornflowerblue')
+plot(diff(adj_nflx), main = 'Difference Closing Price', col = 'cornflowerblue')
+```
+
+**Decomposition of Additive Time Series**
+This plot shows a steady rise for the trend. The seasonal appears to have a frequency as well.
+
+```{r, fig.width = 8, fig.height=6}
+# Decomposition of Additive Time Series
+
+nflx_ts = ts(adj_nflx, frequency = 365, start = 2015-11-15)
+nflx_de = decompose(nflx_ts)
+plot(nflx_de)
+```
+
+**Logged Difference**
+
+The graphs show that the logged difference shows a more balanced variance. Thus, we will explore log_diff for modeling. 
+
+Observation/Note: Volatility is observed even after with differencing. 
+
+```{r, fig.width = 8, fig.height=6}
+# Calculate the First Degree Difference
+diff = diff(adj_nflx)
+log_diff = diff(log(adj_nflx))
+sqrt_diff = diff(sqrt(adj_nflx))
+
+par(mfrow = c(3,1))
+plot(diff, type = 'l', xlab = 'Time', ylab = 'Difference', main = 'First Degree Difference - Raw Data')
+plot(log_diff, type = 'l', xlab = 'Time', ylab = 'Logged Difference', main = 'First Degree Difference - Logged Data')
+plot(sqrt_diff, type = 'l', xlab = 'Time', ylab = 'Square Root Difference', main = 'First Degree Difference - Square-Root Data')
+```
+
+**ACF First Degree Difference**
+
+```{r, fig.width = 10, fig.height=8}
+par(mfrow = c(2,1))
+acf(sqrt_diff, main = 'Autocorrelation Function of First Differences', na.action = na.pass)
+pacf(sqrt_diff, lag.max = 31, main = 'Partial Autocorrelation Function of First Differences', na.action = na.pass)
+```
+
+
+**Second Degree Differencing**
+
+Logged difference with second degree shows a more balanced variance. Thus, we will use log_diff2 for modeling. 
+ 
+```{r, fig.width = 8, fig.height=6}
+# Calculate the Second Degree Difference
+
+diff2 = diff(diff)
+log_diff2 = diff(log_diff)
+sqrt_diff2 = diff(sqrt_diff)
+
+par(mfrow = c(3,1))
+plot(diff2, type = 'l', xlab = 'Time', ylab = '2nd Diff', main = 'Second Degree Difference - Raw Data')
+plot(log_diff2, type = 'l', xlab = 'Time', ylab = '2nd Log Diff', main = 'Second Degree Difference - Logged Data')
+plot(sqrt_diff2, type = 'l', xlab = 'Time', ylab = '2nd Diff - Square-Root', main = 'Second Degree Difference - Square-Root Data')
+```
+
+```{r, fig.width = 12, fig.height=8}
+par(mfrow = c(2, 1))
+
+plot(nflx, ylab = 'QEPS', type = 'o', col = 4, cex = .5, main = NULL)
+mtext(side = 3, text = 'Stock Price Growth', line = 1.5, cex = 1, font = 2)
+plot(log(nflx), ylab = 'log(QEPS)', type = 'o', col = 4, cex = .5, main = NULL)
+```
+
+## Results
+
+1. Per EDA process, it's noted that differencing with logging showed better stationarity. Thus, we will be using log_diff for first differencing and log_diff2 for second differencing for our models.
+
+2. Parameters for the models will be chosen by ACF and PACF plots.
+ 
+3. The models with different parameters will be tested. In addition, auto.arima wil be tested for choosing the best models. 
+ 
+4. Diagnostic measures will be performed to see the residual's correlation. Since we have noticed high volatility in the EDA process, we will move on to GARCH models to confirm the volatility of Netflix stock prices.
+
+
+**MODELS FOR FIRST DEGREE DIFFERENCING**
+
+ACF and PACF of diff_log 
+
+Per ACF, spikes at 1, 5, and 8. PACF tapers to zero.  Thus, let's try MA(1).
+
+```{r, fig.width = 8, fig.height=8}
+FirstDiff = diff(log(adj_nflx))
+par(mfrow=c(2,1))
+acf(FirstDiff, na.action = na.pass, main ='ACF Plot of First Differencing', plot = TRUE)
+pacf(FirstDiff, na.action = na.pass, main = NULL)
+```
+
+**MODELS FOR SECOND DEGREE DIFFERENCING**
+
+ACF was cut off at lag 1.  PACF tailed off.  Let's try MA(1)
+
+```{r, fig.width = 8, fig.height=6}
+par(mfrow=c(2,1))
+acf(diff(FirstDiff), na.action = na.pass, main ='ACF Plot of Second Differencing')
+pacf(diff(FirstDiff), na.action = na.pass, main = NULL)
+```
+
+Now, we assigned the models' names by different parameters.
+
+Model1 = MA(1) for First Differencing
+Model2 = MA(1) for Second Differencing
+Model3 = auto.arima for Differencing for Logged Values
+
+```{r}
+# Model1 = MA(1) for First Differencing
+Model1 = sarima((log(adj_nflx)), 0,1,1)
+Model1
+```
+
+```{r}
+# Model2 = MA(1) for Second Differencing
+Model2 = sarima((log(adj_nflx)), 0,2,1)
+Model2
+```
+
+```{r}
+# Model3 = Auto.arima for logged, first differencing
+Model3 <- auto.arima(log(adj_nflx))
+summary(Model3)
+```
+
+**Diagnostic Test for Model3**
+
+```{r}
+# Diagnostic Checking
+checkresiduals(Model3)
+```
+
+```{r}
+preds <- forecast(Model3, h = 30) 
+autoplot(preds)
+```
+
+```{r}
+# Backtest ARIMA model
+results <- backtest(Model3, log(adj_nflx), orig = 80, h = 30) 
+```
+
+```{r}
+print(paste("Average RMSE: ", round(exp(mean(results$rmse)), digits = 3)))
+print(paste("Average MAE: ", round(exp(mean(results$mabso)), digits = 3)))
+```
+
+**Predicted Prices for Next 30 Days**
+
+```{r}
+preds_df = data.frame(preds)
+predicted_prices <- exp(preds_df)
+predicted_prices
+```
+
+**GARCH Models - Look at Volatility of Stock Prices**
+
+GARCH Model1 with ARMA order (1,1)
+```{r}
+nflx_garch <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(1,1)), distribution.model = "std")
+nflx_garch1 <-ugarchfit(spec=nflx_garch, data=adj_nflx)
+nflx_garch1
+```
+
+GARCH MODEL2 WITH ARMA (2,2)
+```{r}
+nflx_garch2 <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(2,2)), distribution.model = "std")
+nflx_garch2 <-ugarchfit(spec=nflx_garch2, data=adj_nflx)
+nflx_garch2
+```
+
+GARCH MODEL3 WITH ARMA ORDER (3,3)
+```{r}
+nflx_garch3 <-  ugarchspec(variance.model = list(model="sGARCH",garchOrder=c(1,1)), mean.model = list(armaOrder=c(3,3)), distribution.model = "std")
+nflx_garch3 <-ugarchfit(spec=nflx_garch3, data=adj_nflx)
+nflx_garch3
+```
+
+
+Table to Show Akaike Values for the GARCH Models
+
+GARCH(2,2) and GARCH(3,3) had lower p values for weighted Ljung-Box Test on standardized residuals. 
+
+GARCH(1,1) had the best metrics and outperformed the other two GARCH models. This is the model that will be used.
+
+
+
+```{r}
+GARCH_Models = c('GARCH(1,1)', 'GARCH(2,2)','GARCH(3,3)')
+Akaike = c('6.722', '6.721', '6.724')
+
+gtable = data.frame(GARCH_Models, Akaike)
+gtable
+```
+
+```{r}
+kable(gtable, format = 'html', caption = '<b>Garch Model - Akaike Values<b>',position = 'center', align = 'cc') %>%
+  kable_styling(full_width = TRUE, position = 'center')%>%
+  kable_classic(html_font = 'Times New Roman')
+```
+**FORECASTING**
+
+Forecasting with bootstrap forecast to forecast both series and conditional variances.
+
+nflx_garch1 with arma order (1,1) 
+
+```{r}
+nflx_predict <- ugarchboot(nflx_garch1, n.ahead=30,method=c("Partial","Full")[1])
+nflx_predict
+plot(nflx_predict,which=2)
+```
+
+**Predicted Prices by GARCH Models**
+```{r}
+nflx_predict_df <- as.data.frame(nflx_predict, which="series", type="summary")
+nflx_predict_df
+```
+
+```{r}
+pred_table <- as.data.frame(t(nflx_predict_df))
+pred_table
+```
+
+
+
