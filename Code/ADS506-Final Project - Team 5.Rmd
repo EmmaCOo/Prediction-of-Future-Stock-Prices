@@ -322,6 +322,16 @@ kable(gtable, format = 'html', caption = '<b>Garch Model - Akaike Values<b>',pos
   kable_styling(full_width = TRUE, position = 'center')%>%
   kable_classic(html_font = 'Times New Roman')
 ```
+
+Plot of the growth rate with the conditional standard deviation superimposed.
+
+```{r}
+#Remake the GARCH model
+nflx_garch_mod <- garchFit(~arma(1,1) + garch(1, 1), data = diff(log(adj_nflx))[-1], trace = FALSE, cond.dist = "std")
+plot(nflx_garch_mod, which = 3)
+```
+
+
 **FORECASTING**
 
 Forecasting with bootstrap forecast to forecast both series and conditional variances.
@@ -333,6 +343,7 @@ nflx_predict <- ugarchboot(nflx_garch1, n.ahead=30,method=c("Partial","Full")[1]
 nflx_predict
 plot(nflx_predict,which=2)
 ```
+
 
 **Predicted Prices by GARCH Models**
 ```{r}
